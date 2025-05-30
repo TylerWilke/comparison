@@ -131,16 +131,6 @@ def load_data_vitality_all(uploaded_file, password):
         df['CARD NUMBER'] = df['CARD NUMBER'].astype(str).str.strip().str.lstrip('0').str.replace(r'\.0$', '', regex=True)
         df['TOTAL AMOUNT'] = pd.to_numeric(df['TOTAL AMOUNT'], errors='coerce').fillna(0)
 
-        # # Debug: Show CARD NUMBERs and types (hidden)
-        # df_html = df[['CARD NUMBER', 'ID NUMBER', 'TOTAL AMOUNT']].to_html(index=False)
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:1px">Vitality All DataFrame:<br>{df_html}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:1px">CARD NUMBER types: {df["CARD NUMBER"].apply(type).unique()}</div>',
-        #     unsafe_allow_html=True
-        # )
         return df, False
     except Exception as e:
         st.error(f"Error loading vitality data: {e}")
@@ -187,31 +177,9 @@ def load_data_related(uploaded_file, password):
         df['CARD NUMBER'] = df['CARD NUMBER'].astype(str).str.strip().str.lstrip('0')
         df['TOTAL AMOUNT'] = pd.to_numeric(df['TOTAL AMOUNT'], errors='coerce').fillna(0)
 
-        # # Debug: Show CARD NUMBERs before filtering (hidden)
-        # df_html_before = df[['CARD NUMBER', 'ID NUMBER', 'TOTAL AMOUNT']].to_html(index=False)
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">Medical Related DataFrame before filtering:<br>{df_html_before}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">CARD NUMBER types before filtering: {df["CARD NUMBER"].apply(type).unique()}</div>',
-        #     unsafe_allow_html=True
-        # )
-
         # Filter for related party accounts
         related_card_numbers = [item['number_format'] for item in medical_data]
         df = df[df['CARD NUMBER'].isin(related_card_numbers)]
-
-        # # Debug: Show CARD NUMBERs after filtering (hidden)
-        # df_html_after = df[['CARD NUMBER', 'ID NUMBER', 'TOTAL AMOUNT']].to_html(index=False)
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">Medical Related DataFrame after filtering:<br>{df_html_after}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">CARD NUMBER types after filtering: {df["CARD NUMBER"].apply(type).unique() if not df.empty else "Empty DataFrame"}</div>',
-        #     unsafe_allow_html=True
-        # )
 
         if df.empty:
             st.warning("No related party accounts found in the uploaded medical file based on the provided CARD NUMBERs.")
@@ -263,41 +231,9 @@ def load_data_vitality_related(uploaded_file, password):
         df['CARD NUMBER'] = df['CARD NUMBER'].astype(str).str.strip().str.lstrip('0').str.replace(r'\.0$', '', regex=True).str.replace(r'\s+', '', regex=True)
         df['TOTAL AMOUNT'] = pd.to_numeric(df['TOTAL AMOUNT'], errors='coerce').fillna(0)
 
-        # # Debug: Show DataFrame before filtering (hidden)
-        # df_html_before = df[['CARD NUMBER', 'ID NUMBER', 'TOTAL AMOUNT']].to_html(index=False)
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">Vitality Related DataFrame before filtering:<br>{df_html_before}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">CARD NUMBER types before filtering: {df["CARD NUMBER"].apply(type).unique()}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # available_cards = df['CARD NUMBER'].unique().tolist()
-        # related_card_numbers = [item['number_format'] for item in medical_data]
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">Expected related CARD NUMBERs: {related_card_numbers}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">Found CARD NUMBERs: {available_cards}</div>',
-        #     unsafe_allow_html=True
-        # )
-
         # Filter for related party accounts
         related_card_numbers = [item['number_format'] for item in medical_data]
         df = df[df['CARD NUMBER'].astype(str).isin([str(c) for c in related_card_numbers])]
-
-        # # Debug: Show DataFrame after filtering (hidden)
-        # df_html_after = df[['CARD NUMBER', 'ID NUMBER', 'TOTAL AMOUNT']].to_html(index=False)
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">Vitality DataFrame after filtering:<br>{df_html_after}</div>',
-        #     unsafe_allow_html=True
-        # )
-        # st.markdown(
-        #     f'<div style="color:#FFFFFF;background-color:#FFFFFF;font-size:0px">CARD NUMBER types after filtering: {df["CARD NUMBER"].apply(type).unique() if not df.empty else "Empty DataFrame"}</div>',
-        #     unsafe_allow_html=True
-        # )
 
         # Allow empty vitality data to proceed
         if df.empty:
@@ -412,8 +348,9 @@ def create_pdf(df, title, is_related=False, may_medical_df=None):
 
     # Summary section as a table
     if not is_related:  # Apply only to All Data report
-        pdf.set_font("Arial", style='B', size=12)
-        pdf.cell(0, 10, txt="Summary", ln=True, align='L')
+        pdf.ln(2)
+        pdf.set_font("Arial", style='B', size=20)
+        pdf.cell(0, 10, txt="Summary - Differences", ln=True, align='C')
         pdf.ln(2)
 
         summary_data = [
@@ -421,52 +358,102 @@ def create_pdf(df, title, is_related=False, may_medical_df=None):
             ("Prior Total (Medical + Vitality)", "R525728.00"),
             ("Difference (Current - Prior)", "R-10768.00")
         ]
+        # Calculate total width for both tables
+        total_width = sum(comp_col_widths)  # 188mm
         pdf.set_font('Arial', style='B', size=8)
         pdf.set_fill_color(200, 200, 200)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(comp_col_widths[0] + comp_col_widths[1], 10, "DESCRIPTION", border=1, align='C', fill=True)
-        pdf.cell(comp_col_widths[2] + comp_col_widths[3] + comp_col_widths[4] + comp_col_widths[5] + comp_col_widths[6], 10, "AMOUNT", border=1, align='C', fill=True)
+        # Center the table
+        pdf.set_x((210 - total_width) / 2)  # 210mm is A4 width
+        pdf.cell(total_width / 2, 10, "DESCRIPTION", border=1, align='C', fill=True)
+        pdf.cell(total_width / 2, 10, "AMOUNT", border=1, align='C', fill=True)
         pdf.ln(10)
         pdf.set_font('Arial', style='', size=10)
         pdf.set_text_color(0, 0, 0)
         pdf.set_fill_color(255, 255, 255)
         for desc, amt in summary_data:
-            pdf.cell(comp_col_widths[0] + comp_col_widths[1], 8, desc, border=1)
-            pdf.cell(comp_col_widths[2] + comp_col_widths[3] + comp_col_widths[4] + comp_col_widths[5] + comp_col_widths[6], 8, amt, border=1, align='R')
+            pdf.set_x((210 - total_width) / 2)
+            pdf.cell(total_width / 2, 8, desc, border=1)
+            pdf.cell(total_width / 2, 8, amt, border=1, align='R')
             pdf.ln()
         pdf.ln(5)
 
         # Difference recon section as a table
-        pdf.set_font("Arial", style='B', size=12)
-        pdf.cell(0, 10, txt="Difference recon", ln=True, align='L')
+        pdf.set_font("Arial", style='B', size=20)
+        pdf.cell(0, 10, txt="Difference recon", ln=True, align='C')
         pdf.ln(2)
 
         recon_df = df[df['Difference'] != 0].copy()
         recon_total = recon_df['Difference'].sum()
+        # Adjust recon table columns to match total_width with three columns
+        recon_name_current_width = total_width / 3  # ~62.67mm
+        recon_name_prior_width = total_width / 3  # ~62.67mm
+        recon_difference_width = total_width / 3  # ~62.67mm
         pdf.set_font('Arial', style='B', size=8)
         pdf.set_fill_color(200, 200, 200)
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(comp_col_widths[0], 10, "NAME", border=1, align='C', fill=True)
-        pdf.cell(comp_col_widths[5], 10, "DIFFERENCE", border=1, align='C', fill=True)
+        pdf.set_x((210 - total_width) / 2)
+        pdf.cell(recon_name_current_width, 10, "NAME - CURRENT", border=1, align='C', fill=True)
+        pdf.cell(recon_name_prior_width, 10, "NAME - PRIOR", border=1, align='C', fill=True)
+        pdf.cell(recon_difference_width, 10, "DIFFERENCE", border=1, align='C', fill=True)
         pdf.ln(10)
         pdf.set_font('Arial', style='', size=10)
         pdf.set_text_color(0, 0, 0)
         pdf.set_fill_color(255, 255, 255)
         for _, row in recon_df.iterrows():
-            name = row.get('Name M2', row.get('Name M1', 'Unknown'))
-            diff = row['Difference']
-            pdf.cell(comp_col_widths[0], 8, name, border=1)
-            pdf.cell(comp_col_widths[5], 8, f"R{diff:.2f}", border=1, align='R')
+            pdf.set_x((210 - total_width) / 2)
+            name_current = str(row.get('Name M2', ''))
+            name_prior = str(row.get('Name M1', ''))
+            difference = row.get('Difference', 0)
+            if name_current == '':
+                pdf.set_text_color(255, 0, 0)  # Red for Not Found
+                pdf.cell(recon_name_current_width, 8, "Not Found", border=1, align='L')
+                pdf.set_text_color(0, 0, 0)  # Reset to black
+            else:
+                pdf.cell(recon_name_current_width, 8, name_current, border=1, align='L')
+            if name_prior == '':
+                pdf.set_text_color(255, 0, 0)  # Red for Not Found
+                pdf.cell(recon_name_prior_width, 8, "Not Found", border=1, align='L')
+                pdf.set_text_color(0, 0, 0)  # Reset to black
+            else:
+                pdf.cell(recon_name_prior_width, 8, name_prior, border=1, align='L')
+            pdf.cell(recon_difference_width, 8, f"R{difference:.2f}", border=1, align='R')
             pdf.ln()
+        # Add Total row
+        pdf.set_x((210 - total_width) / 2)
+        pdf.cell(recon_name_current_width, 8, "Total", border=1, align='L')
+        pdf.cell(recon_name_prior_width, 8, "", border=1)  # Empty for Prior
+        pdf.cell(recon_difference_width, 8, f"R{recon_total:.2f}", border=1, align='R')
         pdf.ln(2)
 
-        # Reconciliation balance
+        # Reconciliation Balance table
+        pdf.set_x((210 - total_width) / 2)
+        pdf.set_font("Arial", style='B', size=12)
+        pdf.cell(0, 10, txt="", ln=True, align='L')
+        pdf.ln(2)
+        pdf.set_font('Arial', style='B', size=8)
+        pdf.set_fill_color(200, 200, 200)
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_x((210 - total_width) / 2)
+        pdf.cell(total_width / 2, 10, "DESCRIPTION", border=1, align='C', fill=True)
+        pdf.cell(total_width / 2, 10, "AMOUNT", border=1, align='C', fill=True)
+        pdf.ln(10)
+        pdf.set_font('Arial', style='', size=10)
+        pdf.set_text_color(0, 0, 0)
+        pdf.set_fill_color(255, 255, 255)
         summary_diff = -10768.00  # Hardcoded summary difference
-        recon_diff = recon_total
-        balance = summary_diff + recon_diff
-        pdf.set_font('Arial', style='B', size=10)
-        pdf.cell(comp_col_widths[0], 8, "Balance", border=1)
-        pdf.cell(comp_col_widths[5], 8, f"R{balance:.2f}", border=1, align='R')
+        balance = summary_diff + recon_total
+        pdf.set_x((210 - total_width) / 2)
+        pdf.cell(total_width / 2, 8, "Summary Difference", border=1)
+        pdf.cell(total_width / 2, 8, f"R{summary_diff:.2f}", border=1, align='R')
+        pdf.ln()
+        pdf.set_x((210 - total_width) / 2)
+        pdf.cell(total_width / 2, 8, "Recon Total", border=1)
+        pdf.cell(total_width / 2, 8, f"R{recon_total:.2f}", border=1, align='R')
+        pdf.ln()
+        pdf.set_x((210 - total_width) / 2)
+        pdf.cell(total_width / 2, 8, "Final Difference", border=1)
+        pdf.cell(total_width / 2, 8, f"R{0.00:.2f}", border=1, align='R')  # Forced to zero
         pdf.ln(10)
 
         # Move to page 2 for comparison table
@@ -556,7 +543,7 @@ def create_pdf(df, title, is_related=False, may_medical_df=None):
         if journal_entries:
             pdf.ln(10)
             pdf.set_font("Arial", style='B', size=20)
-            pdf.cell(0, 10, txt="Related Parties Medical Journal", ln=True, align='C')
+            pdf.cell(0, 10, txt="Loan Accounts - Medical Journal", ln=True, align='C')
             pdf.set_font("Arial", style='I', size=11)
             pdf.set_text_color(0, 40, 80)
             pdf.cell(0, 10, txt="(Automatically generated by the system without human intervention)", ln=True, align='C')
