@@ -4,7 +4,7 @@ from fpdf import FPDF
 import io
 import msoffcrypto
 import uuid
-
+print("Hello")
 # Session state initialization
 if 'password' not in st.session_state:
     st.session_state['password'] = ''
@@ -306,6 +306,7 @@ st.markdown(
 )
 
 # Header
+st.markdown('<h1>RHAM</h1>', unsafe_allow_html=True)
 st.markdown('<h1>DISCOVERY MEDICAL CONTRIBUTION CHANGE REPORT</h1>', unsafe_allow_html=True)
 
 # Upload section layout
