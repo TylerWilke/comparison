@@ -5,21 +5,19 @@ import io
 import msoffcrypto
 import uuid
 
-# Session state for all data comparison
-if 'workflow_state_all' not in st.session_state:
-    st.session_state['workflow_state_all'] = 'waiting_for_compare'
-if 'password_all' not in st.session_state:
-    st.session_state['password_all'] = ''
+# Session state initialization
+if 'password' not in st.session_state:
+    st.session_state['password'] = ''
+if 'password_valid' not in st.session_state:
+    st.session_state['password_valid'] = False
 if 'compared_all' not in st.session_state:
     st.session_state['compared_all'] = False
-
-# Session state for related party comparison
-if 'workflow_state_related' not in st.session_state:
-    st.session_state['workflow_state_related'] = 'waiting_for_compare'
-if 'password_related' not in st.session_state:
-    st.session_state['password_related'] = ''
 if 'compared_related' not in st.session_state:
     st.session_state['compared_related'] = False
+if 'merged_df_all' not in st.session_state:
+    st.session_state['merged_df_all'] = None
+if 'merged_df_related' not in st.session_state:
+    st.session_state['merged_df_related'] = None
 
 # Medical data for related party accounts
 medical_data = [
@@ -29,70 +27,6 @@ medical_data = [
     {"CARD NUMBER": " 559536990", "number_format": "559536990", "id_number": "8407241371086", "member_surname": "MALGAS", "member_initial": "B", "employee_number": "Related party Journal"},
     {"CARD NUMBER": " 651616480", "number_format": "651616480", "id_number": "8906235056082", "member_surname": "NAUDE", "member_initial": "SJE", "employee_number": "Related party Journal"},
 ]
-
-# Custom CSS
-st.markdown(
-    """
-    <style>
-    .block-container {
-        padding-top: 1rem;
-    }
-    h1 {
-        color: #000000;
-        font-weight: bold;
-        text-align: center;
-        margin-top: 0;
-        margin-bottom: 1rem;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Header
-st.markdown('<h1>DISCOVERY MEDICAL CONTRIBUTION CHANGE REPORT</h1>', unsafe_allow_html=True)
-
-# Upload section layout
-col_upload1, col_upload2 = st.columns([1, 1])
-with col_upload1:
-    st.markdown("📂 **Current Month**")
-    may_file = st.file_uploader("Upload Current Month's Medical Excel File", type=["xlsx"], key="may_file")
-with col_upload2:
-    st.markdown("📂 **Prior Month**")
-    april_file = st.file_uploader("Upload Prior Month's Medical Excel File", type=["xlsx"], key="april_file")
-
-# Compare buttons
-st.markdown("")
-col_button1, col_button2 = st.columns([1, 1])
-with col_button1:
-    compare_all_button = st.button("Compare All Data")
-with col_button2:
-    compare_related_button = st.button("Compare Related Parties")
-
-# Handle button clicks
-if compare_all_button and may_file and april_file:
-    st.session_state['workflow_state_all'] = 'waiting_for_password'
-    st.session_state['password_all'] = ''
-if compare_related_button and may_file and april_file:
-    st.session_state['workflow_state_related'] = 'waiting_for_password'
-    st.session_state['password_related'] = ''
-
-# Password forms
-if st.session_state['workflow_state_all'] == 'waiting_for_password':
-    with st.form(key="password_form_all"):
-        password_all = st.text_input("Enter password for all data comparison:", type="password", key="password_input_all")
-        submit_all = st.form_submit_button("Submit Password")
-        if submit_all and password_all:
-            st.session_state['password_all'] = password_all
-            st.session_state['workflow_state_all'] = 'comparison_complete'
-
-if st.session_state['workflow_state_related'] == 'waiting_for_password':
-    with st.form(key="password_form_related"):
-        password_related = st.text_input("Enter password for related party comparison:", type="password", key="password_input_related")
-        submit_related = st.form_submit_button("Submit Password")
-        if submit_related and password_related:
-            st.session_state['password_related'] = password_related
-            st.session_state['workflow_state_related'] = 'comparison_complete'
 
 # Function to load and clean data (all data)
 def load_data_all(uploaded_file, password):
@@ -107,10 +41,16 @@ def load_data_all(uploaded_file, password):
             office_file.decrypt(decrypted)
         except msoffcrypto.exceptions.InvalidKeyError:
             return None, True
-        else:
-            decrypted.seek(0)
+        except Exception as e:
+            st.error(f"Error decrypting file: {e}")
+            return None, False
 
-        df_raw = pd.read_excel(decrypted, sheet_name=0, skiprows=5)
+        try:
+            df_raw = pd.read_excel(decrypted, sheet_name=0, skiprows=5)
+        except ValueError as e:
+            st.error(f"Error loading data: Unsupported file format - {e}")
+            return None, False
+
         df_raw.columns = df_raw.columns.str.strip()
 
         expected_cols = ['CARD NUMBER', 'EMPLOYEE NUMBER', 'MEMBER SURNAME', 'MEMBER INITIAL', 'ID NUMBER', 'TOTAL AMOUNT']
@@ -142,10 +82,16 @@ def load_data_related(uploaded_file, password):
             office_file.decrypt(decrypted)
         except msoffcrypto.exceptions.InvalidKeyError:
             return None, True
-        else:
-            decrypted.seek(0)
+        except Exception as e:
+            st.error(f"Error decrypting file: {e}")
+            return None, False
 
-        df_raw = pd.read_excel(decrypted, sheet_name=0, skiprows=5)
+        try:
+            df_raw = pd.read_excel(decrypted, sheet_name=0, skiprows=5)
+        except ValueError as e:
+            st.error(f"Error loading data: Unsupported file format - {e}")
+            return None, False
+
         df_raw.columns = df_raw.columns.str.strip()
 
         expected_cols = ['CARD NUMBER', 'EMPLOYEE NUMBER', 'MEMBER SURNAME', 'MEMBER INITIAL', 'ID NUMBER', 'TOTAL AMOUNT']
@@ -251,60 +197,106 @@ def create_pdf(df, title):
     pdf_bytes = pdf.output(dest='S').encode('latin1')
     return io.BytesIO(pdf_bytes)
 
-# Main logic for all data
-if may_file and april_file:
-    if st.session_state['workflow_state_all'] == 'comparison_complete':
-        with st.spinner("Comparing all data..."):
-            password = st.session_state['password_all']
-            may_df, password_failed_may = load_data_all(may_file, password)
-            april_df, password_failed_april = load_data_all(april_file, password)
+# Custom CSS
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;
+    }
+    h1 {
+        color: #000000;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 1rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
-            if password_failed_may or password_failed_april:
-                st.error("Incorrect password for all data comparison, please re-enter.")
-                st.session_state['compared_all'] = False
-                st.session_state['workflow_state_all'] = 'waiting_for_password'
-            elif may_df is not None and april_df is not None:
-                merged_df = compare_data(may_df, april_df)
-                if merged_df is not None:
-                    st.session_state['compared_all'] = True
-                    st.session_state['merged_df_all'] = merged_df
-                    st.success("All data comparison completed successfully!")
+# Header
+st.markdown('<h1>DISCOVERY MEDICAL CONTRIBUTION CHANGE REPORT</h1>', unsafe_allow_html=True)
+
+# Upload section layout
+col_upload1, col_upload2 = st.columns([1, 1])
+with col_upload1:
+    st.markdown("📂 **Current Month**")
+    may_file = st.file_uploader("Upload Current Month's Medical Excel File", type=["xlsx"], key="may_file")
+with col_upload2:
+    st.markdown("📂 **Prior Month**")
+    april_file = st.file_uploader("Upload Prior Month's Medical Excel File", type=["xlsx"], key="april_file")
+
+# Password form
+if may_file and april_file and not st.session_state['password_valid']:
+    with st.form(key="password_form"):
+        password_input = st.text_input("Enter password to decrypt Excel files:", type="password", key="password_input")
+        submit_password = st.form_submit_button("Submit Password")
+        if submit_password and password_input:
+            st.session_state['password'] = password_input
+            # Attempt to validate password by loading both files
+            with st.spinner("Validating password..."):
+                may_df_all, password_failed_may = load_data_all(may_file, password_input)
+                april_df_all, password_failed_april = load_data_all(april_file, password_input)
+                if password_failed_may or password_failed_april:
+                    st.error("Incorrect password, please try again.")
+                    st.session_state['password_valid'] = False
+                elif may_df_all is None or april_df_all is None:
+                    st.error("Failed to load one or both files. Check file format or password.")
+                    st.session_state['password_valid'] = False
                 else:
-                    st.error("All data comparison failed due to data issues.")
+                    st.session_state['password_valid'] = True
+                    st.success("Password validated successfully!")
+
+# Report type selection and processing
+if may_file and april_file and st.session_state['password_valid']:
+    report_type = st.selectbox("Select Report Type:", ["All Data", "Related Parties"], key="report_type")
+    if st.button("Generate Report"):
+        with st.spinner(f"Generating {report_type} report..."):
+            if report_type == "All Data":
+                may_df, password_failed_may = load_data_all(may_file, st.session_state['password'])
+                april_df, password_failed_april = load_data_all(april_file, st.session_state['password'])
+                if password_failed_may or password_failed_april:
+                    st.error("Password validation failed for all data, please re-enter.")
+                    st.session_state['password_valid'] = False
+                elif may_df is not None and april_df is not None:
+                    merged_df = compare_data(may_df, april_df)
+                    if merged_df is not None:
+                        st.session_state['compared_all'] = True
+                        st.session_state['compared_related'] = False
+                        st.session_state['merged_df_all'] = merged_df
+                        st.session_state['merged_df_related'] = None
+                        st.success("All data comparison completed successfully!")
+                    else:
+                        st.error("All data comparison failed due to data issues.")
+                        st.session_state['compared_all'] = False
+                else:
+                    st.error("Failed to load one or both files for all data.")
+                    st.session_state['password_valid'] = False
                     st.session_state['compared_all'] = False
-                    st.session_state['workflow_state_all'] = 'waiting_for_password'
-            else:
-                st.error("Failed to load one or both files for all data.")
-                st.session_state['compared_all'] = False
-                st.session_state['workflow_state_all'] = 'waiting_for_password'
-
-# Main logic for related parties
-if may_file and april_file:
-    if st.session_state['workflow_state_related'] == 'comparison_complete':
-        with st.spinner("Comparing related party data..."):
-            password = st.session_state['password_related']
-            may_df, password_failed_may = load_data_related(may_file, password)
-            april_df, password_failed_april = load_data_related(april_file, password)
-
-            if password_failed_may or password_failed_april:
-                st.error("Incorrect password for related party comparison, please re-enter.")
-                st.session_state['compared_related'] = False
-                st.session_state['workflow_state_related'] = 'waiting_for_password'
-            elif may_df is not None and april_df is not None:
-                merged_df = compare_data(may_df, april_df)
-                if merged_df is not None:
-                    st.session_state['compared_related'] = True
-                    st.session_state['merged_df_related'] = merged_df
-                    st.success("Related party comparison completed successfully!")
+            else:  # Related Parties
+                may_df, password_failed_may = load_data_related(may_file, st.session_state['password'])
+                april_df, password_failed_april = load_data_related(april_file, st.session_state['password'])
+                if password_failed_may or password_failed_april:
+                    st.error("Password validation failed for related parties, please re-enter.")
+                    st.session_state['password_valid'] = False
+                elif may_df is not None and april_df is not None:
+                    merged_df = compare_data(may_df, april_df)
+                    if merged_df is not None:
+                        st.session_state['compared_related'] = True
+                        st.session_state['compared_all'] = False
+                        st.session_state['merged_df_related'] = merged_df
+                        st.session_state['merged_df_all'] = None
+                        st.success("Related party comparison completed successfully!")
+                    else:
+                        st.error("Related party comparison failed due to data issues.")
+                        st.session_state['compared_related'] = False
                 else:
-                    st.error("Related party comparison failed due to data issues.")
+                    st.error("Failed to load one or both files for related parties.")
+                    st.session_state['password_valid'] = False
                     st.session_state['compared_related'] = False
-                    st.session_state['workflow_state_related'] = 'waiting_for_password'
-            else:
-                st.error("Failed to load one or both files for related parties.")
-                st.session_state['compared_related'] = False
-                st.session_state['workflow_state_related'] = 'waiting_for_password'
-else:
+elif not (may_file and april_file):
     st.warning("Please upload both Excel files to proceed.")
 
 # Display all data comparison results
