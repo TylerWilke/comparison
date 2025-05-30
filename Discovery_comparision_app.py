@@ -18,6 +18,8 @@ if 'merged_df_all' not in st.session_state:
     st.session_state['merged_df_all'] = None
 if 'merged_df_related' not in st.session_state:
     st.session_state['merged_df_related'] = None
+if 'may_df_related' not in st.session_state:
+    st.session_state['may_df_related'] = None
 
 # Medical data for related party accounts
 medical_data = [
@@ -27,6 +29,15 @@ medical_data = [
     {"CARD NUMBER": " 559536990", "number_format": "559536990", "id_number": "8407241371086", "member_surname": "MALGAS", "member_initial": "B", "employee_number": "Related party Journal"},
     {"CARD NUMBER": " 651616480", "number_format": "651616480", "id_number": "8906235056082", "member_surname": "NAUDE", "member_initial": "SJE", "employee_number": "Related party Journal"},
 ]
+
+# CARD NUMBER to Account mapping
+account_mapping = {
+    "32893940": {"credit": "Loans Receivable>Alcaraz Family Trust", "debit": "Medical Aid"},
+    "782418254": {"credit": "Loans Receivable>Alcaraz Family Trust", "debit": "Medical Aid"},
+    "245834291": {"credit": "Loans Receivable>Alcaraz Family Trust", "debit": "Medical Aid"},
+    "559536990": {"credit": "Noboscope", "debit": "Medical Aid"},
+    "651616480": {"credit": "Noboscope", "debit": "Medical Aid"},
+}
 
 # Function to load and clean data (all data)
 def load_data_all(uploaded_file, password):
@@ -63,6 +74,7 @@ def load_data_all(uploaded_file, password):
         df = df_raw[expected_cols].copy()
         df = df.dropna(subset=['ID NUMBER', 'TOTAL AMOUNT'])
         df['ID NUMBER'] = df['ID NUMBER'].astype(str).str.strip()
+        df['CARD NUMBER'] = df['CARD NUMBER'].astype(str).str.strip().str.lstrip('0')
         df['TOTAL AMOUNT'] = pd.to_numeric(df['TOTAL AMOUNT'], errors='coerce').fillna(0)
         return df, False
     except Exception as e:
@@ -140,7 +152,7 @@ def compare_data(may_df, april_df):
     })
 
 # Function to create PDF
-def create_pdf(df, title):
+def create_pdf(df, title, is_related=False, may_df=None):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=False)
     pdf.add_page()
@@ -152,47 +164,124 @@ def create_pdf(df, title):
     pdf.cell(0, 10, txt=title, ln=True, align='C')
     pdf.ln(2)
 
-    col_names = ['Name M1', 'Name M2', 'ID No', 'Current', 'Prior', 'Difference', 'Change']
-    col_widths = [35, 35, 35, 19, 19, 19, 25]
+    # Comparison table
+    comp_col_names = ['Name M1', 'Name M2', 'ID No', 'Current', 'Prior', 'Difference', 'Change']
+    comp_col_widths = [35, 35, 35, 19, 19, 19, 25]
 
-    def print_header():
+    def print_comparison_header():
         pdf.set_font('Arial', style='B', size=8)
         pdf.set_fill_color(200, 200, 200)
         pdf.set_text_color(0, 0, 0)
-        for i, col_name in enumerate(col_names):
-            pdf.cell(col_widths[i], 10, col_name.upper(), border=1, align='C', fill=True)
+        for i, col_name in enumerate(comp_col_names):
+            pdf.cell(comp_col_widths[i], 10, col_name.upper(), border=1, align='C', fill=True)
         pdf.ln(10)
         pdf.set_font('Arial', style='', size=10)
         pdf.set_text_color(0, 0, 0)
         pdf.set_fill_color(255, 255, 255)
 
-    print_header()
+    print_comparison_header()
 
     page_height_limit = 275
     for _, row in df.iterrows():
         if pdf.get_y() + 10 > page_height_limit:
             pdf.add_page()
             pdf.set_font("Arial", style='B', size=16)
-            pdf.set_text_color(0, 0, 0)
             pdf.set_xy(0, 10)
             pdf.cell(0, 10, txt=title, ln=True, align='C')
             pdf.ln(2)
-            print_header()
+            print_comparison_header()
 
-        pdf.cell(col_widths[0], 8, str(row.get('Name M1', '')), border=1)
-        pdf.cell(col_widths[1], 8, str(row.get('Name M2', '')), border=1)
-        pdf.cell(col_widths[2], 8, str(row.get('ID No', '')), border=1)
-        pdf.cell(col_widths[3], 8, f"{row.get('Amount M2', 0):.2f}", border=1, align='R')  # Current
-        pdf.cell(col_widths[4], 8, f"{row.get('Amount M1', 0):.2f}", border=1, align='R')  # Prior
-        pdf.cell(col_widths[5], 8, f"{row.get('Difference', 0):.2f}", border=1, align='R')
+        pdf.cell(comp_col_widths[0], 8, str(row.get('Name M1', '')), border=1)
+        pdf.cell(comp_col_widths[1], 8, str(row.get('Name M2', '')), border=1)
+        pdf.cell(comp_col_widths[2], 8, str(row.get('ID No', '')), border=1)
+        pdf.cell(comp_col_widths[3], 8, f"{row.get('Amount M2', 0):.2f}", border=1, align='R')  # Current
+        pdf.cell(comp_col_widths[4], 8, f"{row.get('Amount M1', 0):.2f}", border=1, align='R')  # Prior
+        pdf.cell(comp_col_widths[5], 8, f"{row.get('Difference', 0):.2f}", border=1, align='R')
         changed_value = row.get('Change', False)
         if changed_value:
             pdf.set_text_color(255, 0, 0)
-            pdf.cell(col_widths[6], 8, "Changed", border=1, align='C')
+            pdf.cell(comp_col_widths[6], 8, "Changed", border=1, align='C')
             pdf.set_text_color(0, 0, 0)
         else:
-            pdf.cell(col_widths[6], 8, "", border=1, align='C')
+            pdf.cell(comp_col_widths[6], 8, "", border=1, align='C')
         pdf.ln()
+
+    # Journal table for related parties
+    if is_related and may_df is not None:
+        unmatched_cards = []
+        journal_entries = []
+        
+        # Generate journal entries from may_df
+        for _, row in may_df.iterrows():
+            card_number = row['CARD NUMBER']
+            amount = row['TOTAL AMOUNT']
+            initials = row['MEMBER INITIAL']
+            surname = row['MEMBER SURNAME']
+            description = f"{initials} {surname} - Discovery"
+
+            if card_number in account_mapping:
+                # Credit entry
+                journal_entries.append({
+                    "CARD NUMBER": card_number,
+                    "Account": account_mapping[card_number]["credit"],
+                    "Description": description,
+                    "Debit": "",
+                    "Credit": f"{amount:.2f}"
+                })
+                # Debit entry
+                journal_entries.append({
+                    "CARD NUMBER": card_number,
+                    "Account": account_mapping[card_number]["debit"],
+                    "Description": description,
+                    "Debit": f"{amount:.2f}",
+                    "Credit": ""
+                })
+            else:
+                unmatched_cards.append(card_number)
+
+        if unmatched_cards:
+            st.warning(f"No account mapping found for CARD NUMBERs: {', '.join(unmatched_cards)}")
+
+        if journal_entries:
+            pdf.ln(10)
+            pdf.set_font("Arial", style='B', size=12)
+            pdf.cell(0, 10, txt="Related Parties Journal", ln=True, align='C')
+            pdf.ln(2)
+
+            journal_col_names = ['CARD NUMBER', 'Account', 'Description', 'Debit', 'Credit']
+            journal_col_widths = [25, 70, 50, 22, 22]
+
+            def print_journal_header():
+                pdf.set_font('Arial', style='B', size=8)
+                pdf.set_fill_color(200, 200, 200)
+                pdf.set_text_color(0, 0, 0)
+                for i, col_name in enumerate(journal_col_names):
+                    pdf.cell(journal_col_widths[i], 10, col_name.upper(), border=1, align='C', fill=True)
+                pdf.ln(10)
+                pdf.set_font('Arial', style='', size=10)
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_fill_color(255, 255, 255)
+
+            print_journal_header()
+
+            for entry in journal_entries:
+                if pdf.get_y() + 10 > page_height_limit:
+                    pdf.add_page()
+                    pdf.set_font("Arial", style='B', size=16)
+                    pdf.set_xy(0, 10)
+                    pdf.cell(0, 10, txt=title, ln=True, align='C')
+                    pdf.ln(2)
+                    pdf.set_font("Arial", style='B', size=12)
+                    pdf.cell(0, 10, txt="Related Parties Journal", ln=True, align='C')
+                    pdf.ln(2)
+                    print_journal_header()
+
+                pdf.cell(journal_col_widths[0], 8, entry['CARD NUMBER'], border=1)
+                pdf.cell(journal_col_widths[1], 8, entry['Account'], border=1)
+                pdf.cell(journal_col_widths[2], 8, entry['Description'], border=1)
+                pdf.cell(journal_col_widths[3], 8, entry['Debit'], border=1, align='R')
+                pdf.cell(journal_col_widths[4], 8, entry['Credit'], border=1, align='R')
+                pdf.ln()
 
     pdf_bytes = pdf.output(dest='S').encode('latin1')
     return io.BytesIO(pdf_bytes)
@@ -267,6 +356,7 @@ if may_file and april_file and st.session_state['password_valid']:
                         st.session_state['compared_related'] = False
                         st.session_state['merged_df_all'] = merged_df
                         st.session_state['merged_df_related'] = None
+                        st.session_state['may_df_related'] = None
                         st.success("All data comparison completed successfully!")
                     else:
                         st.error("All data comparison failed due to data issues.")
@@ -288,6 +378,7 @@ if may_file and april_file and st.session_state['password_valid']:
                         st.session_state['compared_all'] = False
                         st.session_state['merged_df_related'] = merged_df
                         st.session_state['merged_df_all'] = None
+                        st.session_state['may_df_related'] = may_df  # Store may_df for journal
                         st.success("Related party comparison completed successfully!")
                     else:
                         st.error("Related party comparison failed due to data issues.")
@@ -318,5 +409,10 @@ if st.session_state['compared_related']:
     csv = st.session_state['merged_df_related'].to_csv(index=False)
     st.download_button("Download Related Party Report as CSV", csv, "related_party_change_report.csv", "text/csv")
 
-    pdf_buffer = create_pdf(st.session_state['merged_df_related'], "Rham Discovery Medical Contribution Change Report - Related Parties")
+    pdf_buffer = create_pdf(
+        st.session_state['merged_df_related'],
+        "Rham Discovery Medical Contribution Change Report - Related Parties",
+        is_related=True,
+        may_df=st.session_state.get('may_df_related')
+    )
     st.download_button("Download Related Party Report as PDF", pdf_buffer, "Rham_Related_Party_Change_Report.pdf", "application/pdf")
