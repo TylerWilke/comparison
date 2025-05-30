@@ -314,7 +314,20 @@ st.markdown(
 )
 
 # Header
+# Logo as part of the cover
+logo_path = r"C:\Projects\Medical\Blue image.JPG"  # Fixed file extension and closed string
+# Center the logo using columns
+st.markdown("")  # Spacer
+st.markdown("")  # Spacer
+col1, col2, col3 = st.columns([5, 2, 5])  # Middle column wider to hold the logo
+with col2:
+    try:
+        st.image(logo_path, width=100)  # Approximately 5 cm wide (189 pixels at 96 DPI)
+    except FileNotFoundError:
+        st.error(f"Logo file not found at {logo_path}. Please ensure the file exists and the path is correct.")
+# header section
 st.markdown('<h1>DISCOVERY MEDICAL CONTRIBUTION CHANGE REPORT</h1>', unsafe_allow_html=True)
+
 
 # Upload section layout
 col_upload1, col_upload2 = st.columns([1, 1])
@@ -424,3 +437,24 @@ if st.session_state['compared_related']:
         may_df=st.session_state.get('may_df_related')
     )
     st.download_button("Download Related Party Report as PDF", pdf_buffer, "Rham_Related_Party_Change_Report.pdf", "application/pdf")
+   
+   
+   
+   
+   
+    # Display all data comparison results
+if st.session_state['compared_all']:
+    st.subheader("All Data Comparison Report")
+    logo_path = r"C:\Projects\Medical\Blue image.JPG"
+    try:
+        st.image(logo_path, use_column_width=True)
+    except FileNotFoundError:
+        st.error(f"Logo file not found at {logo_path}.")
+    st.dataframe(st.session_state['merged_df_all'][['Name M1', 'Name M2', 'ID No', 'Amount M1', 'Amount M2', 'Difference', 'Change']])
+
+    csv = st.session_state['merged_df_all'].to_csv(index=False)
+    st.download_button("Download All Data Report as CSV", csv, "all_data_change_report.csv", "text/csv")
+
+    pdf_buffer = create_pdf(st.session_state['merged_df_all'], "Rham Discovery Medical Contribution Change Report - All Data")
+    st.download_button("Download All Data Report as PDF", pdf_buffer, "Rham_All_Data_Change_Report.pdf", "application/pdf")
+
