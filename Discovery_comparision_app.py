@@ -349,8 +349,8 @@ def create_pdf(df, title, is_related=False, may_medical_df=None):
     # Summary section as a table
     if not is_related:  # Apply only to All Data report
         pdf.ln(2)
-        pdf.set_font("Arial", style='B', size=20)
-        pdf.cell(0, 10, txt="Summary - Differences", ln=True, align='C')
+        pdf.set_font("Arial", style='B', size=15)
+        pdf.cell(0, 10, txt="Summary of Differences", ln=True, align='C')
         pdf.ln(2)
 
         summary_data = [
@@ -379,10 +379,8 @@ def create_pdf(df, title, is_related=False, may_medical_df=None):
         pdf.ln(5)
 
         # Difference recon section as a table
-        pdf.set_font("Arial", style='B', size=20)
-        pdf.cell(0, 10, txt="Difference recon", ln=True, align='C')
-        pdf.ln(2)
-
+        pdf.set_font("Arial", style='B', size=15)
+        pdf.cell(0, 10, txt="Reconciliation of Differences", ln=True, align='C')
         recon_df = df[df['Difference'] != 0].copy()
         recon_total = recon_df['Difference'].sum()
         # Adjust recon table columns to match total_width with three columns
